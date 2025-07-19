@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import './App.css';
+import React, { useState, useEffect } from 'react';
 
-type Player = 'X' | 'O';
-type Board = (Player | null)[];
-type GameState = 'playing' | 'won' | 'draw';
+type Player = 'X' | 'O'; 
+type Board = (Player | null)[]; 
+type GameState = 'playing' | 'won' | 'draw'; 
 
 interface GameStats {
   xWins: number;
@@ -41,13 +40,83 @@ const App: React.FC = () => {
     return board.every(cell => cell !== null);
   };
 
-  // Handle cell click
-  const handleCellClick = (index: number) => {
-    if (board[index] || gameState !== 'playing') return;
+  // Get empty cells
+  const getEmptyCells = (board: Board): number[] => {
+    return board.map((cell, index) => cell === null ? index : -1).filter(index => index !== -1);
+  };
 
-    const newBoard = [...board];
-    newBoard[index] = currentPlayer;
+  // Minimax algorithm for computer AI
+  const minimax = (board: Board, depth: number, isMaximizing: boolean): number => {
+    const winner = checkWinner(board);
+    
+    if (winner === 'O') return 10 - depth;
+    if (winner === 'X') return depth - 10;
+    if (isBoardFull(board)) return 0;
+
+    if (isMaximizing) {
+      let bestScore = -Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (board[i] === null) {
+          board[i] = 'O';
+          const score = minimax(board, depth + 1, false);
+          board[i] = null;
+          bestScore = Math.max(score, bestScore);
+        }
+      }
+      return bestScore;
+    } else {
+      let bestScore = Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (board[i] === null) {
+          board[i] = 'X';
+          const score = minimax(board, depth + 1, true);
+          board[i] = null;
+          bestScore = Math.min(score, bestScore);
+        }
+      }
+      return bestScore;
+    }
+  };
+
+
+  const getBestMove = (board: Board): number => {
+    let bestScore = -Infinity;
+    let bestMove = -1;
+    
+    for (let i = 0; i < 9; i++) {
+      if (board[i] === null) {
+        board[i] = 'O';
+        const score = minimax(board, 0, false);
+        board[i] = null;
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = i;
+        }
+      }
+    }
+    
+    return bestMove;
+  };
+
+
+  const makeComputerMove = (currentBoard: Board) => {
+    const emptyCells = getEmptyCells(currentBoard);
+    if (emptyCells.length === 0) return;
+
+    let computerMove: number;
+    
+   
+    computerMove = getBestMove(currentBoard);
+    
+
+    if (computerMove === -1) {
+      computerMove = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    }
+
+    const newBoard = [...currentBoard];
+    newBoard[computerMove] = 'O';
     setBoard(newBoard);
+
 
     const gameWinner = checkWinner(newBoard);
     if (gameWinner) {
@@ -61,9 +130,44 @@ const App: React.FC = () => {
       setGameState('draw');
       setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
     } else {
-      setCurrentPlayer(currentPlayer === 'X' ? 'O' : 'X');
+      setCurrentPlayer('X');
     }
   };
+
+
+  const handleCellClick = (index: number) => {
+    if (board[index] || gameState !== 'playing' || currentPlayer !== 'X') return;
+
+    const newBoard = [...board];
+    newBoard[index] = 'X';
+    setBoard(newBoard);
+
+
+    const gameWinner = checkWinner(newBoard);
+    if (gameWinner) {
+      setWinner(gameWinner);
+      setGameState('won');
+      setStats(prev => ({
+        ...prev,
+        [gameWinner === 'X' ? 'xWins' : 'oWins']: prev[gameWinner === 'X' ? 'xWins' : 'oWins'] + 1
+      }));
+    } else if (isBoardFull(newBoard)) {
+      setGameState('draw');
+      setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
+    } else {
+      setCurrentPlayer('O');
+    }
+  };
+
+
+  useEffect(() => {
+    if (currentPlayer === 'O' && gameState === 'playing') {
+      const timer = setTimeout(() => {
+        makeComputerMove(board);
+      }, 500); 
+      return () => clearTimeout(timer);
+    }
+  }, [currentPlayer, gameState, board]);
 
   // Reset game
   const resetGame = () => {
@@ -87,11 +191,11 @@ const App: React.FC = () => {
   const getStatusMessage = (): string => {
     switch (gameState) {
       case 'won':
-        return `Player ${winner} wins!`;
+        return winner === 'X' ? 'You win!' : 'Computer wins!';
       case 'draw':
         return "It's a draw!";
       default:
-        return `Player ${currentPlayer}'s turn`;
+        return currentPlayer === 'X' ? 'Your turn' : 'Computer thinking...';
     }
   };
 
@@ -99,13 +203,16 @@ const App: React.FC = () => {
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
         <h1 className="text-4xl font-bold text-center mb-8 text-gray-800">
-          Tic Tac Toe
+          Tic Tac Toe vs Computer
         </h1>
         
         {/* Game Status */}
         <div className="text-center mb-6">
           <p className="text-xl font-semibold text-gray-700">
             {getStatusMessage()}
+          </p>
+          <p className="text-sm text-gray-500 mt-2">
+            You are X, Computer is O
           </p>
         </div>
 
@@ -122,8 +229,9 @@ const App: React.FC = () => {
                   : 'bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400 cursor-pointer active:scale-95'
                 }
                 ${cell === 'X' ? 'text-blue-600' : 'text-red-600'}
+                ${currentPlayer === 'O' && gameState === 'playing' ? 'cursor-not-allowed opacity-50' : ''}
               `}
-              disabled={!!cell || gameState !== 'playing'}
+              disabled={!!cell || gameState !== 'playing' || currentPlayer !== 'X'}
             >
               {getCellValue(index)}
             </button>
@@ -148,7 +256,7 @@ const App: React.FC = () => {
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-2xl font-bold text-blue-600">{stats.xWins}</p>
-              <p className="text-sm text-gray-600">X Wins</p>
+              <p className="text-sm text-gray-600">Your Wins</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-600">{stats.draws}</p>
@@ -156,7 +264,7 @@ const App: React.FC = () => {
             </div>
             <div>
               <p className="text-2xl font-bold text-red-600">{stats.oWins}</p>
-              <p className="text-sm text-gray-600">O Wins</p>
+              <p className="text-sm text-gray-600">Computer Wins</p>
             </div>
           </div>
           <div className="mt-4 text-center">
