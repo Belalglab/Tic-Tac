@@ -46,9 +46,9 @@ const App: React.FC = () => {
   };
 
   // Minimax algorithm for computer AI
+  // FIX: Never mutate the board directly, always use a copy
   const minimax = (board: Board, depth: number, isMaximizing: boolean): number => {
     const winner = checkWinner(board);
-    
     if (winner === 'O') return 10 - depth;
     if (winner === 'X') return depth - 10;
     if (isBoardFull(board)) return 0;
@@ -57,9 +57,9 @@ const App: React.FC = () => {
       let bestScore = -Infinity;
       for (let i = 0; i < 9; i++) {
         if (board[i] === null) {
-          board[i] = 'O';
-          const score = minimax(board, depth + 1, false);
-          board[i] = null;
+          const newBoard = [...board];
+          newBoard[i] = 'O';
+          const score = minimax(newBoard, depth + 1, false);
           bestScore = Math.max(score, bestScore);
         }
       }
@@ -68,9 +68,9 @@ const App: React.FC = () => {
       let bestScore = Infinity;
       for (let i = 0; i < 9; i++) {
         if (board[i] === null) {
-          board[i] = 'X';
-          const score = minimax(board, depth + 1, true);
-          board[i] = null;
+          const newBoard = [...board];
+          newBoard[i] = 'X';
+          const score = minimax(newBoard, depth + 1, true);
           bestScore = Math.min(score, bestScore);
         }
       }
@@ -78,37 +78,31 @@ const App: React.FC = () => {
     }
   };
 
-
+  // FIX: Never mutate the board directly in getBestMove
   const getBestMove = (board: Board): number => {
     let bestScore = -Infinity;
     let bestMove = -1;
-    
     for (let i = 0; i < 9; i++) {
       if (board[i] === null) {
-        board[i] = 'O';
-        const score = minimax(board, 0, false);
-        board[i] = null;
+        const newBoard = [...board];
+        newBoard[i] = 'O';
+        const score = minimax(newBoard, 0, false);
         if (score > bestScore) {
           bestScore = score;
           bestMove = i;
         }
       }
     }
-    
     return bestMove;
   };
-
 
   const makeComputerMove = (currentBoard: Board) => {
     const emptyCells = getEmptyCells(currentBoard);
     if (emptyCells.length === 0) return;
 
-    let computerMove: number;
-    
-   
-    computerMove = getBestMove(currentBoard);
-    
+    let computerMove = getBestMove(currentBoard);
 
+    // FIX: getBestMove should always return a valid move if there are empty cells
     if (computerMove === -1) {
       computerMove = emptyCells[Math.floor(Math.random() * emptyCells.length)];
     }
@@ -116,7 +110,6 @@ const App: React.FC = () => {
     const newBoard = [...currentBoard];
     newBoard[computerMove] = 'O';
     setBoard(newBoard);
-
 
     const gameWinner = checkWinner(newBoard);
     if (gameWinner) {
@@ -134,14 +127,12 @@ const App: React.FC = () => {
     }
   };
 
-
   const handleCellClick = (index: number) => {
     if (board[index] || gameState !== 'playing' || currentPlayer !== 'X') return;
 
     const newBoard = [...board];
     newBoard[index] = 'X';
     setBoard(newBoard);
-
 
     const gameWinner = checkWinner(newBoard);
     if (gameWinner) {
@@ -159,7 +150,7 @@ const App: React.FC = () => {
     }
   };
 
-
+  // FIX: Remove board from dependency array to avoid unnecessary triggers
   useEffect(() => {
     if (currentPlayer === 'O' && gameState === 'playing') {
       const timer = setTimeout(() => {
@@ -167,7 +158,8 @@ const App: React.FC = () => {
       }, 500); 
       return () => clearTimeout(timer);
     }
-  }, [currentPlayer, gameState, board]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPlayer, gameState]); // board removed
 
   // Reset game
   const resetGame = () => {
@@ -229,7 +221,7 @@ const App: React.FC = () => {
                   : 'bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400 cursor-pointer active:scale-95'
                 }
                 ${cell === 'X' ? 'text-blue-600' : 'text-red-600'}
-                ${currentPlayer === 'O' && gameState === 'playing' ? 'cursor-not-allowed opacity-50' : ''}
+                ${currentPlayer === 'O' && gameState === 'playing' && !cell ? 'cursor-not-allowed opacity-50' : ''}
               `}
               disabled={!!cell || gameState !== 'playing' || currentPlayer !== 'X'}
             >
